@@ -2,6 +2,7 @@ const STORAGE_KEY = "teacher-behavior-tracker-local-v1";
 const BACKUP_FILE_VERSION = 1;
 const DEFAULT_HALL_PASSES = 8;
 const QUICK_NOTE_PRESETS = [
+  "Tardy",
   "Phone",
   "Off task",
   "Disruptive",
@@ -85,6 +86,7 @@ const appState = {
   selectedStudentId: "",
   selectedBehaviorId: "",
   quickNote: "",
+  studentNoteDrafts: {},
   noteModeOpen: false,
   reportStudentId: "",
   studentPrintMode: false,
@@ -351,7 +353,7 @@ function renderBehaviorEntryPanel(students) {
       ${appState.noteModeOpen ? `
         <label class="field">
           <span>Teacher note</span>
-          <input id="quickNoteInput" type="text" value="${escapeAttribute(appState.quickNote)}" placeholder="Optional note for the next click">
+          <input id="quickNoteInput" type="text" value="${escapeAttribute(getStudentNoteDraft(appState.selectedStudentId))}" placeholder="Optional note for ${escapeAttribute(selectedStudent?.name || "this student")}">
         </label>
       ` : ""}
 
@@ -981,6 +983,7 @@ function attachEventHandlers() {
     appState.selectedStudentId = appState.data.students[0]?.id || "";
     appState.selectedBehaviorId = appState.data.behaviorCategories[0]?.id || "";
     appState.quickNote = "";
+    appState.studentNoteDrafts = {};
     appState.selectedNotePreset = "";
     appState.lastLoggedEventId = "";
     appState.lastLogMessage = "";
@@ -1017,7 +1020,7 @@ function attachEventHandlers() {
     button.addEventListener("click", () => {
       appState.noteModeOpen = !appState.noteModeOpen;
       if (!appState.noteModeOpen) {
-        appState.quickNote = "";
+        clearStudentNoteDraft(appState.selectedStudentId);
       }
       renderApp();
     });
@@ -1033,7 +1036,7 @@ function attachEventHandlers() {
   });
 
   root.querySelector("#quickNoteInput")?.addEventListener("input", (event) => {
-    appState.quickNote = event.target.value;
+    setStudentNoteDraft(appState.selectedStudentId, event.target.value);
     if (event.target.value.trim()) {
       appState.selectedNotePreset = "";
     }
@@ -1050,7 +1053,7 @@ function attachEventHandlers() {
       appState.selectedBehaviorId = button.dataset.behaviorId;
       const selectedBehavior = appState.data.behaviorCategories.find((behavior) => behavior.id === button.dataset.behaviorId);
       appState.selectedCategoryGroup = selectedBehavior?.group || appState.selectedCategoryGroup;
-      logBehaviorEvent(appState.selectedStudentId, button.dataset.behaviorId, getPendingNote());
+      logBehaviorEvent(appState.selectedStudentId, button.dataset.behaviorId, getPendingNote(appState.selectedStudentId));
     });
   });
 
@@ -1107,14 +1110,14 @@ function attachEventHandlers() {
 
   root.querySelectorAll('[data-action="quick-log"]').forEach((button) => {
     button.addEventListener("click", () => {
-      logBehaviorEvent(button.dataset.studentId, button.dataset.behaviorId, getPendingNote());
+      logBehaviorEvent(button.dataset.studentId, button.dataset.behaviorId, getPendingNote(button.dataset.studentId));
     });
   });
 
   root.querySelectorAll('[data-action="select-note-preset"]').forEach((button) => {
     button.addEventListener("click", () => {
       appState.selectedNotePreset = button.dataset.note || "";
-      appState.quickNote = "";
+      clearStudentNoteDraft(appState.selectedStudentId);
       renderApp();
     });
   });
@@ -1382,6 +1385,7 @@ function logBehaviorEvent(studentId, behaviorId, note) {
 
   appState.lastLoggedEventId = createdEvent.id;
   appState.quickNote = "";
+  clearStudentNoteDraft(student.id);
   appState.selectedNotePreset = "";
   appState.noteModeOpen = false;
   persistState();
@@ -1403,6 +1407,7 @@ function removeStudent(studentId) {
   appState.data.behaviorEvents = appState.data.behaviorEvents.filter((event) => event.studentId !== studentId);
   appState.data.parentContacts = appState.data.parentContacts.filter((contact) => contact.studentId !== studentId);
   appState.data.hallPassEvents = (appState.data.hallPassEvents || []).filter((entry) => entry.studentId !== studentId);
+  clearStudentNoteDraft(studentId);
 
   if (appState.selectedStudentId === studentId) {
     appState.selectedStudentId = appState.data.students[0]?.id || "";
@@ -1549,8 +1554,37 @@ function getStudentCountsForDate(studentId, dateString) {
   );
 }
 
-function getPendingNote() {
-  return (appState.selectedNotePreset || appState.quickNote || "").trim();
+function getStudentNoteDraft(studentId) {
+  if (!studentId) {
+    return "";
+  }
+  return (appState.studentNoteDrafts?.[studentId] || "").trim();
+}
+
+function setStudentNoteDraft(studentId, value) {
+  if (!studentId) {
+    return;
+  }
+  if (!value.trim()) {
+    clearStudentNoteDraft(studentId);
+    return;
+  }
+  appState.studentNoteDrafts = {
+    ...appState.studentNoteDrafts,
+    [studentId]: value
+  };
+}
+
+function clearStudentNoteDraft(studentId) {
+  if (!studentId || !appState.studentNoteDrafts?.[studentId]) {
+    return;
+  }
+  const { [studentId]: _removedDraft, ...remainingDrafts } = appState.studentNoteDrafts;
+  appState.studentNoteDrafts = remainingDrafts;
+}
+
+function getPendingNote(studentId) {
+  return (appState.selectedNotePreset || getStudentNoteDraft(studentId) || appState.quickNote || "").trim();
 }
 
 function undoLastLog() {
@@ -1824,6 +1858,7 @@ function restoreBackupFile(file) {
       appState.newClassName = "";
       appState.bulkRosterText = "";
       appState.quickNote = "";
+      appState.studentNoteDrafts = {};
       appState.selectedNotePreset = "";
       appState.lastLoggedEventId = "";
       appState.lastLogMessage = "";
