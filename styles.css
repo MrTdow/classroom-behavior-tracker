@@ -176,6 +176,11 @@ h1 {
   color: var(--accent);
 }
 
+.active-mode-button {
+  background: var(--accent);
+  color: white;
+}
+
 .note-toggle {
   width: 100%;
   justify-self: start;
@@ -257,6 +262,10 @@ h1 {
 .classroom-mode .main-grid {
   grid-template-columns: minmax(0, 2fr) minmax(300px, 0.85fr);
   align-items: start;
+}
+
+.pbis-mode .main-grid {
+  grid-template-columns: 1fr;
 }
 
 .panel {
@@ -723,6 +732,17 @@ textarea {
 .pbis-panel-layout {
   display: grid;
   gap: 16px;
+}
+
+.pbis-settings-panel {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.pbis-reward-field {
+  max-width: 360px;
 }
 
 .pbis-card {

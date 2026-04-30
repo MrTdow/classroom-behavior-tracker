@@ -1,6 +1,7 @@
 const STORAGE_KEY = "teacher-behavior-tracker-local-v1";
 const BACKUP_FILE_VERSION = 1;
 const DEFAULT_HALL_PASSES = 8;
+const DEFAULT_PBIS_REWARD_NAME = "Doudna Dollar";
 const QUICK_NOTE_PRESETS = [
   "Tardy",
   "Phone",
@@ -92,6 +93,7 @@ const appState = {
   reportStudentId: "",
   studentPrintMode: false,
   classroomMode: false,
+  pbisMode: false,
   seatingChartMode: false,
   newClassName: "",
   bulkRosterText: "",
@@ -147,10 +149,11 @@ function renderApp() {
   const classroomEvents = getClassroomActivityEvents(appState.activeClassId).slice(0, 24);
   const activePbisClassId = appState.pbisClassId || appState.activeClassId || appState.data.classPeriods[0]?.id || "";
   const activePbisClass = appState.data.classPeriods.find((period) => period.id === activePbisClassId) || null;
-  const pbisRows = buildPbisProgressForClass(activePbisClassId);
+  const pbisRewardName = getPbisRewardName();
+  const pbisRows = buildPbisProgressForClass(activePbisClassId, pbisRewardName);
 
   root.innerHTML = `
-    <div class="app-shell ${appState.studentPrintMode ? "student-print-mode" : ""} ${appState.classroomMode ? "classroom-mode" : ""}">
+    <div class="app-shell ${appState.studentPrintMode ? "student-print-mode" : ""} ${appState.classroomMode ? "classroom-mode" : ""} ${appState.pbisMode ? "pbis-mode" : ""}">
       <header class="topbar">
         <div class="brand-lockup">
           <div class="brand-emblem" aria-hidden="true">${renderWarriorEmblem()}</div>
@@ -166,13 +169,18 @@ function renderApp() {
           </p>
         </div>
         <div class="topbar-actions">
-          <button class="secondary-button" data-action="toggle-classroom-mode">
+          <button class="secondary-button ${appState.classroomMode ? "active-mode-button" : ""}" data-action="toggle-classroom-mode">
             ${appState.classroomMode ? "Exit classroom mode" : "Classroom mode"}
           </button>
-          <button class="secondary-button" data-action="toggle-seating-mode">
-            ${appState.seatingChartMode ? "Roster view" : "Seating chart mode"}
+          <button class="secondary-button ${appState.pbisMode ? "active-mode-button" : ""}" data-action="toggle-pbis-mode">
+            ${appState.pbisMode ? "Teacher dashboard" : "PBIS"}
           </button>
-          ${appState.classroomMode ? "" : `
+          ${appState.pbisMode ? "" : `
+            <button class="secondary-button" data-action="toggle-seating-mode">
+              ${appState.seatingChartMode ? "Roster view" : "Seating chart mode"}
+            </button>
+          `}
+          ${appState.classroomMode || appState.pbisMode ? "" : `
             <button class="secondary-button" data-action="export-backup">Backup data</button>
             <button class="secondary-button" data-action="restore-backup">Restore data</button>
             <button class="secondary-button" data-action="reset-sample">Reset to sample data</button>
@@ -199,80 +207,82 @@ function renderApp() {
         </div>
       </section>
 
-      ${appState.classroomMode ? "" : `
+      ${appState.classroomMode || appState.pbisMode ? "" : `
         <section class="stats-strip">
           ${renderStatCard("Students", String(appState.data.students.length), "neutral")}
           ${renderStatCard("Positive on date", String(stats.positiveToday), "positive")}
           ${renderStatCard("Negative on date", String(stats.negativeToday), "negative")}
           ${renderStatCard("Parent contacts", String(appState.data.parentContacts.length), "neutral")}
         </section>
-
-        <section class="panel dashboard-pbis-panel">
-          ${renderPanelHeader("PBIS", "Doudna Dollar progress", "Students earn rewards for clean positive streaks: 10 positives earns 1 dollar, 25 positives earns 5 dollars and resets the bar.")}
-          ${renderPbisProgressPanel(pbisRows, activePbisClass, activePbisClassId)}
-        </section>
       `}
 
       <main class="main-grid">
-        <section class="panel panel-span-2 classroom-entry-panel">
-          ${renderPanelHeader("Quick Entry", activeClass ? `Students in ${activeClass.name}` : "Select a class", "Click a class to load that roster, then log behavior in a couple of clicks.")}
-          ${renderBehaviorEntryPanel(activeStudents)}
-          ${renderStudentGrid(activeStudents)}
-        </section>
-
-        ${appState.classroomMode ? `
-          <section class="panel classroom-live-panel" aria-live="polite">
-            ${renderPanelHeader("Live Feed", activeClass ? activeClass.name : "Class activity", "Newest logs for the selected class and date.")}
-            ${renderClassroomActivityFeed(classroomEvents)}
+        ${appState.pbisMode ? `
+          <section class="panel panel-span-2 dashboard-pbis-panel">
+            ${renderPanelHeader("PBIS", `${pbisRewardName} progress`, `Students earn rewards for clean positive streaks: 10 positives earns 1 ${pbisRewardName}, 25 positives earns 5 ${getPluralRewardName(pbisRewardName)} and resets the bar.`)}
+            ${renderPbisProgressPanel(pbisRows, activePbisClass, activePbisClassId, pbisRewardName)}
           </section>
-        ` : ""}
-
-        ${appState.classroomMode ? "" : `
-          <section class="panel">
-            ${renderPanelHeader("Share This App", "Teacher-ready backup and setup", "Each teacher keeps their own local data, but can back it up or move it to another device.")}
-            ${renderSharingPanel()}
+        ` : `
+          <section class="panel panel-span-2 classroom-entry-panel">
+            ${renderPanelHeader("Quick Entry", activeClass ? `Students in ${activeClass.name}` : "Select a class", "Click a class to load that roster, then log behavior in a couple of clicks.")}
+            ${renderBehaviorEntryPanel(activeStudents)}
+            ${renderStudentGrid(activeStudents)}
           </section>
 
-          <section class="panel">
-            ${renderPanelHeader("Classes", "Add and manage classes", "Create your own classes or periods for the school year.")}
-            ${renderClassManager()}
-          </section>
+          ${appState.classroomMode ? `
+            <section class="panel classroom-live-panel" aria-live="polite">
+              ${renderPanelHeader("Live Feed", activeClass ? activeClass.name : "Class activity", "Newest logs for the selected class and date.")}
+              ${renderClassroomActivityFeed(classroomEvents)}
+            </section>
+          ` : ""}
 
-          <section class="panel">
-            ${renderPanelHeader("Roster", "Manage students", "Keep each student tied to a class period.")}
-            ${renderRosterManager(activeStudents, activeClass)}
-          </section>
+          ${appState.classroomMode ? "" : `
+            <section class="panel">
+              ${renderPanelHeader("Share This App", "Teacher-ready backup and setup", "Each teacher keeps their own local data, but can back it up or move it to another device.")}
+              ${renderSharingPanel()}
+            </section>
 
-          <section class="panel">
-            ${renderPanelHeader("Filters", "Search behavior records", "Narrow events by student, date range, period, or behavior.")}
-            ${renderFiltersPanel()}
-            ${renderEventFeed(filteredEvents.slice(0, 16))}
-          </section>
+            <section class="panel">
+              ${renderPanelHeader("Classes", "Add and manage classes", "Create your own classes or periods for the school year.")}
+              ${renderClassManager()}
+            </section>
 
-          <section class="panel panel-span-2">
-            ${renderPanelHeader("Summaries", "Daily and weekly trends", "See which students need recognition, support, or follow-up.")}
-            ${renderSummaryPanel(dailySummary, weeklySummary, stats.classPeriodTotals)}
-          </section>
+            <section class="panel">
+              ${renderPanelHeader("Roster", "Manage students", "Keep each student tied to a class period.")}
+              ${renderRosterManager(activeStudents, activeClass)}
+            </section>
 
-          <section class="panel">
-            ${renderPanelHeader("Tracker Focus", "Three main categories", "Behavior, Preparedness, and Participation each log as positive or negative.")}
-            ${renderBehaviorCategoryManager()}
-          </section>
+            <section class="panel">
+              ${renderPanelHeader("Filters", "Search behavior records", "Narrow events by student, date range, period, or behavior.")}
+              ${renderFiltersPanel()}
+              ${renderEventFeed(filteredEvents.slice(0, 16))}
+            </section>
 
-          <section class="panel">
-            ${renderPanelHeader("Consequence Ladder", "Classroom response steps", "Customize the sequence you use for follow-up.")}
-            ${renderConsequenceLadderPanel()}
-          </section>
+            <section class="panel panel-span-2">
+              ${renderPanelHeader("Summaries", "Daily and weekly trends", "See which students need recognition, support, or follow-up.")}
+              ${renderSummaryPanel(dailySummary, weeklySummary, stats.classPeriodTotals)}
+            </section>
 
-          <section class="panel panel-span-2">
-            ${renderPanelHeader("Parent Contact", "Student communication log", "Track calls, emails, and follow-up notes by student.")}
-            ${renderParentContactPanel()}
-          </section>
+            <section class="panel">
+              ${renderPanelHeader("Tracker Focus", "Three main categories", "Behavior, Preparedness, and Participation each log as positive or negative.")}
+              ${renderBehaviorCategoryManager()}
+            </section>
 
-          <section class="panel panel-span-2 printable-report">
-            ${renderPanelHeader("Printable Report", reportStudent ? `Student report: ${escapeHtml(reportStudent.name)}` : "Choose a student report", "Use the roster buttons to print a single-student summary.")}
-            ${renderStudentReport(reportStudent)}
-          </section>
+            <section class="panel">
+              ${renderPanelHeader("Consequence Ladder", "Classroom response steps", "Customize the sequence you use for follow-up.")}
+              ${renderConsequenceLadderPanel()}
+            </section>
+
+            <section class="panel panel-span-2">
+              ${renderPanelHeader("Parent Contact", "Student communication log", "Track calls, emails, and follow-up notes by student.")}
+              ${renderParentContactPanel()}
+            </section>
+
+            <section class="panel panel-span-2 printable-report">
+              ${renderPanelHeader("Printable Report", reportStudent ? `Student report: ${escapeHtml(reportStudent.name)}` : "Choose a student report", "Use the roster buttons to print a single-student summary.")}
+              ${renderStudentReport(reportStudent)}
+            </section>
+          `}
         `}
       </main>
       ${appState.lastLogMessage ? `<div class="toast-banner">${escapeHtml(appState.lastLogMessage)}</div>` : ""}
@@ -756,13 +766,20 @@ function renderSummaryPanel(dailySummary, weeklySummary, classPeriodTotals) {
   `;
 }
 
-function renderPbisProgressPanel(rows, activeClass, activePbisClassId) {
+function renderPbisProgressPanel(rows, activeClass, activePbisClassId, rewardName) {
   if (!activeClass) {
     return '<div class="empty-box">Select a class to view PBIS progress.</div>';
   }
 
   return `
     <div class="pbis-panel-layout">
+      <section class="pbis-settings-panel">
+        <label class="field pbis-reward-field">
+          <span>Reward name</span>
+          <input id="pbisRewardName" type="text" maxlength="40" value="${escapeAttribute(rewardName)}" placeholder="${escapeAttribute(DEFAULT_PBIS_REWARD_NAME)}">
+        </label>
+      </section>
+
       <section class="summary-tabs-section">
         <h3>Class tabs</h3>
         <div class="summary-tabs">
@@ -789,7 +806,7 @@ function renderPbisProgressPanel(rows, activeClass, activePbisClassId) {
                     <strong>${escapeHtml(row.studentName)}</strong>
                     <p>${escapeHtml(row.statusText)}</p>
                   </div>
-                  <span class="dollar-badge">${row.dollarsEarned} ${row.dollarsEarned === 1 ? "Dollar" : "Dollars"}</span>
+                  <span class="dollar-badge">${escapeHtml(getRewardLabel(row.dollarsEarned, rewardName))}</span>
                 </div>
                 <div class="pbis-progress-track" aria-label="${escapeAttribute(`${row.studentName} has ${row.currentStreak} of 25 positive behaviors toward the next reset.`)}">
                   <div class="pbis-progress-fill" style="width: ${progressPercent}%"></div>
@@ -1060,7 +1077,19 @@ function attachEventHandlers() {
   const root = document.querySelector("#root");
 
   root.querySelector('[data-action="toggle-classroom-mode"]')?.addEventListener("click", () => {
-    appState.classroomMode = !appState.classroomMode;
+    const enteringClassroomMode = !appState.classroomMode;
+    appState.classroomMode = enteringClassroomMode;
+    if (enteringClassroomMode) {
+      appState.pbisMode = false;
+    }
+    renderApp();
+  });
+  root.querySelector('[data-action="toggle-pbis-mode"]')?.addEventListener("click", () => {
+    const enteringPbisMode = !appState.pbisMode;
+    appState.pbisMode = enteringPbisMode;
+    if (enteringPbisMode) {
+      appState.classroomMode = false;
+    }
     renderApp();
   });
   root.querySelector('[data-action="toggle-seating-mode"]')?.addEventListener("click", () => {
@@ -1092,6 +1121,9 @@ function attachEventHandlers() {
     appState.lastLogMessage = "";
     appState.flashStudentId = "";
     appState.flashTone = "";
+    appState.classroomMode = false;
+    appState.pbisMode = false;
+    appState.studentPrintMode = false;
     appState.reportStudentId = "";
     appState.contactDrafts = {};
     persistState();
@@ -1301,6 +1333,12 @@ function attachEventHandlers() {
       appState.pbisClassId = button.dataset.periodId;
       renderApp();
     });
+  });
+  root.querySelector("#pbisRewardName")?.addEventListener("input", (event) => {
+    updatePbisRewardName(event.target.value);
+  });
+  root.querySelector("#pbisRewardName")?.addEventListener("change", () => {
+    renderApp();
   });
 
   root.querySelectorAll('[data-action="use-hall-pass"]').forEach((button) => {
@@ -1831,7 +1869,32 @@ function getClassroomActivityEvents(periodId) {
     .sort((left, right) => new Date(right.timestamp) - new Date(left.timestamp));
 }
 
-function buildPbisProgressForClass(periodId) {
+function getPbisRewardName() {
+  return (appState.data.settings?.pbisRewardName || DEFAULT_PBIS_REWARD_NAME).trim() || DEFAULT_PBIS_REWARD_NAME;
+}
+
+function updatePbisRewardName(value) {
+  const rewardName = String(value || "").trim() || DEFAULT_PBIS_REWARD_NAME;
+  appState.data.settings = {
+    ...(appState.data.settings || {}),
+    pbisRewardName: rewardName
+  };
+  persistState();
+}
+
+function getPluralRewardName(rewardName) {
+  const trimmed = String(rewardName || DEFAULT_PBIS_REWARD_NAME).trim() || DEFAULT_PBIS_REWARD_NAME;
+  if (/s$/i.test(trimmed)) {
+    return trimmed;
+  }
+  return `${trimmed}s`;
+}
+
+function getRewardLabel(count, rewardName) {
+  return `${count} ${count === 1 ? rewardName : getPluralRewardName(rewardName)}`;
+}
+
+function buildPbisProgressForClass(periodId, rewardName) {
   return appState.data.students
     .filter((student) => student.periodId === periodId)
     .sort((left, right) => left.name.localeCompare(right.name))
@@ -1868,13 +1931,13 @@ function buildPbisProgressForClass(periodId) {
         studentId: student.id,
         studentName: student.name,
         ...progress,
-        statusText: buildPbisStatusText(progress),
-        nextGoalText: buildPbisNextGoalText(progress.currentStreak)
+        statusText: buildPbisStatusText(progress, rewardName),
+        nextGoalText: buildPbisNextGoalText(progress.currentStreak, rewardName)
       };
     });
 }
 
-function buildPbisStatusText(progress) {
+function buildPbisStatusText(progress, rewardName) {
   if (progress.currentStreak === 0 && progress.lastResetReason === "25 positive behaviors") {
     return "Last streak reached 25 positives.";
   }
@@ -1882,16 +1945,16 @@ function buildPbisStatusText(progress) {
     return "Progress reset after a negative behavior.";
   }
   if (progress.currentStreak >= 10) {
-    return "One-dollar checkpoint reached this streak.";
+    return `One ${rewardName} checkpoint reached this streak.`;
   }
-  return "Building toward the first Doudna Dollar.";
+  return `Building toward the first ${rewardName}.`;
 }
 
-function buildPbisNextGoalText(currentStreak) {
+function buildPbisNextGoalText(currentStreak, rewardName) {
   if (currentStreak < 10) {
-    return `${10 - currentStreak} to 1 dollar`;
+    return `${10 - currentStreak} to 1 ${rewardName}`;
   }
-  return `${25 - currentStreak} to 5 dollars`;
+  return `${25 - currentStreak} to 5 ${getPluralRewardName(rewardName)}`;
 }
 
 function buildDashboardStats(filteredEvents) {
@@ -2052,7 +2115,8 @@ function restoreBackupFile(file) {
         behaviorEvents: data.behaviorEvents || [],
         consequenceLadder: data.consequenceLadder || DEFAULT_CONSEQUENCE_LADDER,
         parentContacts: data.parentContacts || [],
-        hallPassEvents: data.hallPassEvents || []
+        hallPassEvents: data.hallPassEvents || [],
+        settings: data.settings || {}
       });
 
       if (!normalized.classPeriods.length) {
@@ -2072,6 +2136,8 @@ function restoreBackupFile(file) {
       appState.flashTone = "";
       appState.noteModeOpen = false;
       appState.studentPrintMode = false;
+      appState.classroomMode = false;
+      appState.pbisMode = false;
       appState.contactDrafts = {};
       appState.activeClassId = normalized.classPeriods[0]?.id || "";
       appState.summaryClassId = appState.activeClassId;
@@ -2112,7 +2178,8 @@ function loadState() {
       behaviorEvents: parsed.behaviorEvents || [],
       consequenceLadder: parsed.consequenceLadder || DEFAULT_CONSEQUENCE_LADDER,
       parentContacts: parsed.parentContacts || [],
-      hallPassEvents: parsed.hallPassEvents || []
+      hallPassEvents: parsed.hallPassEvents || [],
+      settings: parsed.settings || {}
     });
   } catch (error) {
     console.error("Unable to load saved state", error);
@@ -2146,6 +2213,9 @@ function createSampleState() {
   const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60000).toISOString();
 
   return {
+    settings: {
+      pbisRewardName: DEFAULT_PBIS_REWARD_NAME
+    },
     classPeriods: periods,
     students,
     behaviorCategories: DEFAULT_BEHAVIORS,
@@ -2175,6 +2245,10 @@ function normalizeLoadedState(state) {
 
   return {
     ...state,
+    settings: {
+      ...(state.settings || {}),
+      pbisRewardName: String(state.settings?.pbisRewardName || DEFAULT_PBIS_REWARD_NAME).trim() || DEFAULT_PBIS_REWARD_NAME
+    },
     classPeriods: (state.classPeriods || []).map((period, index) => ({
       id: period.id || `p-${index + 1}`,
       name: period.name || `Class ${index + 1}`
