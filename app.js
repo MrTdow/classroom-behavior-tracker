@@ -685,6 +685,9 @@ function renderClassroomActivityFeed(events) {
           <div class="live-feed-details">
             <span class="tone-pill tone-${escapeAttribute(event.tone)}">${escapeHtml(event.tone)}</span>
             <time datetime="${escapeAttribute(event.timestamp)}">${escapeHtml(formatDateTime(event.timestamp))}</time>
+            <button class="danger-button compact-button" data-action="delete-event" data-event-id="${escapeAttribute(event.id)}">
+              Delete
+            </button>
           </div>
           ${event.note ? `<p>${escapeHtml(event.note)}</p>` : ""}
         </article>
