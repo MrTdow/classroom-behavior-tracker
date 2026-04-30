@@ -264,6 +264,10 @@ h1 {
   padding: 22px;
 }
 
+.dashboard-pbis-panel {
+  margin-bottom: 18px;
+}
+
 .panel-span-2 {
   grid-column: span 2;
 }
@@ -710,6 +714,91 @@ textarea {
   margin-top: 12px;
 }
 
+.pbis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.pbis-panel-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.pbis-card {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.pbis-card-header,
+.pbis-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pbis-card-header p,
+.pbis-card-footer {
+  color: var(--muted);
+}
+
+.pbis-card-header p {
+  margin: 5px 0 0;
+}
+
+.dollar-badge {
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: #eef3ff;
+  color: var(--accent);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.pbis-progress-track {
+  position: relative;
+  height: 18px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e4e9f5;
+  border: 1px solid rgba(40, 80, 216, 0.12);
+}
+
+.pbis-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2f5dff, #4f9b82);
+}
+
+.pbis-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.pbis-marker-10 {
+  left: 40%;
+}
+
+.pbis-marker-25 {
+  left: calc(100% - 12px);
+}
+
 .summary-tabs-section {
   grid-column: 1 / -1;
 }
@@ -892,7 +981,9 @@ textarea {
   }
 
   .hall-pass-actions,
-  .quick-presets-header {
+  .quick-presets-header,
+  .pbis-card-header,
+  .pbis-card-footer {
     display: grid;
   }
 }

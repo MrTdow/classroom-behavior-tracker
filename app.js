@@ -82,6 +82,7 @@ const appState = {
   activeClassId: "",
   summaryClassId: "",
   contactClassId: "",
+  pbisClassId: "",
   selectedCategoryGroup: "Behavior",
   selectedStudentId: "",
   selectedBehaviorId: "",
@@ -123,6 +124,7 @@ function initializeApp() {
   appState.activeClassId = appState.data.classPeriods[0]?.id || "";
   appState.summaryClassId = appState.activeClassId;
   appState.contactClassId = appState.activeClassId;
+  appState.pbisClassId = appState.activeClassId;
   appState.selectedCategoryGroup = appState.data.behaviorCategories[0]?.group || "Behavior";
   appState.selectedStudentId = getStudentsForActiveClass()[0]?.id || "";
   appState.selectedBehaviorId = appState.data.behaviorCategories[0]?.id || "";
@@ -143,6 +145,9 @@ function renderApp() {
   const weeklySummary = buildStudentSummary("week");
   const reportStudent = appState.data.students.find((student) => student.id === appState.reportStudentId) || null;
   const classroomEvents = getClassroomActivityEvents(appState.activeClassId).slice(0, 24);
+  const activePbisClassId = appState.pbisClassId || appState.activeClassId || appState.data.classPeriods[0]?.id || "";
+  const activePbisClass = appState.data.classPeriods.find((period) => period.id === activePbisClassId) || null;
+  const pbisRows = buildPbisProgressForClass(activePbisClassId);
 
   root.innerHTML = `
     <div class="app-shell ${appState.studentPrintMode ? "student-print-mode" : ""} ${appState.classroomMode ? "classroom-mode" : ""}">
@@ -200,6 +205,11 @@ function renderApp() {
           ${renderStatCard("Positive on date", String(stats.positiveToday), "positive")}
           ${renderStatCard("Negative on date", String(stats.negativeToday), "negative")}
           ${renderStatCard("Parent contacts", String(appState.data.parentContacts.length), "neutral")}
+        </section>
+
+        <section class="panel dashboard-pbis-panel">
+          ${renderPanelHeader("PBIS", "Doudna Dollar progress", "Students earn rewards for clean positive streaks: 10 positives earns 1 dollar, 25 positives earns 5 dollars and resets the bar.")}
+          ${renderPbisProgressPanel(pbisRows, activePbisClass, activePbisClassId)}
         </section>
       `}
 
@@ -746,6 +756,59 @@ function renderSummaryPanel(dailySummary, weeklySummary, classPeriodTotals) {
   `;
 }
 
+function renderPbisProgressPanel(rows, activeClass, activePbisClassId) {
+  if (!activeClass) {
+    return '<div class="empty-box">Select a class to view PBIS progress.</div>';
+  }
+
+  return `
+    <div class="pbis-panel-layout">
+      <section class="summary-tabs-section">
+        <h3>Class tabs</h3>
+        <div class="summary-tabs">
+          ${appState.data.classPeriods.map((period) => `
+            <button
+              class="summary-tab ${period.id === activePbisClassId ? "active-summary-tab" : ""}"
+              data-action="select-pbis-class"
+              data-period-id="${escapeAttribute(period.id)}"
+            >
+              ${escapeHtml(period.name)}
+            </button>
+          `).join("")}
+        </div>
+      </section>
+
+      ${rows.length ? `
+        <div class="pbis-grid">
+          ${rows.map((row) => {
+            const progressPercent = Math.min(100, Math.round((row.currentStreak / 25) * 100));
+            return `
+              <article class="pbis-card">
+                <div class="pbis-card-header">
+                  <div>
+                    <strong>${escapeHtml(row.studentName)}</strong>
+                    <p>${escapeHtml(row.statusText)}</p>
+                  </div>
+                  <span class="dollar-badge">${row.dollarsEarned} ${row.dollarsEarned === 1 ? "Dollar" : "Dollars"}</span>
+                </div>
+                <div class="pbis-progress-track" aria-label="${escapeAttribute(`${row.studentName} has ${row.currentStreak} of 25 positive behaviors toward the next reset.`)}">
+                  <div class="pbis-progress-fill" style="width: ${progressPercent}%"></div>
+                  <span class="pbis-marker pbis-marker-10">10</span>
+                  <span class="pbis-marker pbis-marker-25">25</span>
+                </div>
+                <div class="pbis-card-footer">
+                  <span>${row.currentStreak}/25 clean positives</span>
+                  <span>${escapeHtml(row.nextGoalText)}</span>
+                </div>
+              </article>
+            `;
+          }).join("")}
+        </div>
+      ` : `<div class="empty-box">No students are in ${escapeHtml(activeClass.name)} yet.</div>`}
+    </div>
+  `;
+}
+
 function renderSummaryTable(rows) {
   if (!rows.length) {
     return '<div class="empty-box">No events logged for this view yet.</div>';
@@ -1015,6 +1078,11 @@ function attachEventHandlers() {
 
   root.querySelector('[data-action="reset-sample"]')?.addEventListener("click", () => {
     appState.data = createFreshState();
+    appState.activeClassId = appState.data.classPeriods[0]?.id || "";
+    appState.summaryClassId = appState.activeClassId;
+    appState.contactClassId = appState.activeClassId;
+    appState.pbisClassId = appState.activeClassId;
+    appState.bulkRosterPeriodId = appState.activeClassId;
     appState.selectedStudentId = appState.data.students[0]?.id || "";
     appState.selectedBehaviorId = appState.data.behaviorCategories[0]?.id || "";
     appState.quickNote = "";
@@ -1224,6 +1292,13 @@ function attachEventHandlers() {
   root.querySelectorAll('[data-action="select-contact-class"]').forEach((button) => {
     button.addEventListener("click", () => {
       appState.contactClassId = button.dataset.periodId;
+      renderApp();
+    });
+  });
+
+  root.querySelectorAll('[data-action="select-pbis-class"]').forEach((button) => {
+    button.addEventListener("click", () => {
+      appState.pbisClassId = button.dataset.periodId;
       renderApp();
     });
   });
@@ -1473,6 +1548,9 @@ function addClass(name) {
     setActiveClass(newClass.id);
     return;
   }
+  if (!appState.pbisClassId) {
+    appState.pbisClassId = newClass.id;
+  }
   persistState();
   renderApp();
 }
@@ -1492,6 +1570,18 @@ function removeClass(periodId) {
 
   if (appState.bulkRosterPeriodId === periodId) {
     appState.bulkRosterPeriodId = appState.data.classPeriods[0]?.id || "";
+  }
+
+  if (appState.summaryClassId === periodId) {
+    appState.summaryClassId = appState.data.classPeriods[0]?.id || "";
+  }
+
+  if (appState.contactClassId === periodId) {
+    appState.contactClassId = appState.data.classPeriods[0]?.id || "";
+  }
+
+  if (appState.pbisClassId === periodId) {
+    appState.pbisClassId = appState.data.classPeriods[0]?.id || "";
   }
 
   if (appState.activeClassId === periodId) {
@@ -1741,6 +1831,69 @@ function getClassroomActivityEvents(periodId) {
     .sort((left, right) => new Date(right.timestamp) - new Date(left.timestamp));
 }
 
+function buildPbisProgressForClass(periodId) {
+  return appState.data.students
+    .filter((student) => student.periodId === periodId)
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((student) => {
+      const events = appState.data.behaviorEvents
+        .filter((event) => event.studentId === student.id)
+        .sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp));
+      const progress = events.reduce(
+        (summary, event) => {
+          const behavior = appState.data.behaviorCategories.find((entry) => entry.id === event.behaviorId);
+
+          if (behavior?.tone === "negative") {
+            summary.currentStreak = 0;
+            summary.lastResetReason = "negative behavior";
+            return summary;
+          }
+
+          summary.currentStreak += 1;
+          if (summary.currentStreak === 10) {
+            summary.dollarsEarned += 1;
+          }
+          if (summary.currentStreak === 25) {
+            summary.dollarsEarned += 4;
+            summary.currentStreak = 0;
+            summary.completedCycles += 1;
+            summary.lastResetReason = "25 positive behaviors";
+          }
+          return summary;
+        },
+        { currentStreak: 0, dollarsEarned: 0, completedCycles: 0, lastResetReason: "" }
+      );
+
+      return {
+        studentId: student.id,
+        studentName: student.name,
+        ...progress,
+        statusText: buildPbisStatusText(progress),
+        nextGoalText: buildPbisNextGoalText(progress.currentStreak)
+      };
+    });
+}
+
+function buildPbisStatusText(progress) {
+  if (progress.currentStreak === 0 && progress.lastResetReason === "25 positive behaviors") {
+    return "Last streak reached 25 positives.";
+  }
+  if (progress.currentStreak === 0 && progress.lastResetReason === "negative behavior") {
+    return "Progress reset after a negative behavior.";
+  }
+  if (progress.currentStreak >= 10) {
+    return "One-dollar checkpoint reached this streak.";
+  }
+  return "Building toward the first Doudna Dollar.";
+}
+
+function buildPbisNextGoalText(currentStreak) {
+  if (currentStreak < 10) {
+    return `${10 - currentStreak} to 1 dollar`;
+  }
+  return `${25 - currentStreak} to 5 dollars`;
+}
+
 function buildDashboardStats(filteredEvents) {
   const selectedDate = appState.filters.exactDate || getLocalDateString();
   const positiveToday = appState.data.behaviorEvents.filter((event) => {
@@ -1923,6 +2076,7 @@ function restoreBackupFile(file) {
       appState.activeClassId = normalized.classPeriods[0]?.id || "";
       appState.summaryClassId = appState.activeClassId;
       appState.contactClassId = appState.activeClassId;
+      appState.pbisClassId = appState.activeClassId;
       appState.bulkRosterPeriodId = appState.activeClassId;
       appState.selectedStudentId = getStudentsForActiveClass()[0]?.id || "";
       appState.selectedCategoryGroup = normalized.behaviorCategories[0]?.group || "Behavior";
