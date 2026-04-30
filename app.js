@@ -142,9 +142,10 @@ function renderApp() {
   const dailySummary = buildStudentSummaryForExactDate(appState.filters.exactDate);
   const weeklySummary = buildStudentSummary("week");
   const reportStudent = appState.data.students.find((student) => student.id === appState.reportStudentId) || null;
+  const classroomEvents = getClassroomActivityEvents(appState.activeClassId).slice(0, 24);
 
   root.innerHTML = `
-    <div class="app-shell ${appState.studentPrintMode ? "student-print-mode" : ""}">
+    <div class="app-shell ${appState.studentPrintMode ? "student-print-mode" : ""} ${appState.classroomMode ? "classroom-mode" : ""}">
       <header class="topbar">
         <div class="brand-lockup">
           <div class="brand-emblem" aria-hidden="true">${renderWarriorEmblem()}</div>
@@ -203,11 +204,18 @@ function renderApp() {
       `}
 
       <main class="main-grid">
-        <section class="panel panel-span-2">
+        <section class="panel panel-span-2 classroom-entry-panel">
           ${renderPanelHeader("Quick Entry", activeClass ? `Students in ${activeClass.name}` : "Select a class", "Click a class to load that roster, then log behavior in a couple of clicks.")}
           ${renderBehaviorEntryPanel(activeStudents)}
           ${renderStudentGrid(activeStudents)}
         </section>
+
+        ${appState.classroomMode ? `
+          <section class="panel classroom-live-panel" aria-live="polite">
+            ${renderPanelHeader("Live Feed", activeClass ? activeClass.name : "Class activity", "Newest logs for the selected class and date.")}
+            ${renderClassroomActivityFeed(classroomEvents)}
+          </section>
+        ` : ""}
 
         ${appState.classroomMode ? "" : `
           <section class="panel">
@@ -655,6 +663,30 @@ function renderEventFeed(events) {
               Delete
             </button>
           </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderClassroomActivityFeed(events) {
+  if (!events.length) {
+    return '<div class="live-feed-empty">No logs yet for this class and date.</div>';
+  }
+
+  return `
+    <div class="live-feed-list">
+      ${events.map((event) => `
+        <article class="live-feed-item tone-${escapeAttribute(event.tone)}">
+          <div class="live-feed-main">
+            <strong>${escapeHtml(event.studentName)}</strong>
+            <span>${escapeHtml(event.behaviorLabel)}</span>
+          </div>
+          <div class="live-feed-details">
+            <span class="tone-pill tone-${escapeAttribute(event.tone)}">${escapeHtml(event.tone)}</span>
+            <time datetime="${escapeAttribute(event.timestamp)}">${escapeHtml(formatDateTime(event.timestamp))}</time>
+          </div>
+          ${event.note ? `<p>${escapeHtml(event.note)}</p>` : ""}
         </article>
       `).join("")}
     </div>
@@ -1684,6 +1716,24 @@ function getFilteredEvents() {
         return false;
       }
       return matchesRange(event.timestamp, appState.filters.range);
+    })
+    .sort((left, right) => new Date(right.timestamp) - new Date(left.timestamp));
+}
+
+function getClassroomActivityEvents(periodId) {
+  const targetDate = appState.filters.exactDate || getLocalDateString();
+  return appState.data.behaviorEvents
+    .filter((event) => event.periodId === periodId && matchesExactDate(event.timestamp, targetDate))
+    .map((event) => {
+      const student = appState.data.students.find((entry) => entry.id === event.studentId);
+      const behavior = appState.data.behaviorCategories.find((entry) => entry.id === event.behaviorId);
+
+      return {
+        ...event,
+        studentName: student?.name || "Unknown student",
+        behaviorLabel: behavior?.label || "Unknown behavior",
+        tone: behavior?.tone || "positive"
+      };
     })
     .sort((left, right) => new Date(right.timestamp) - new Date(left.timestamp));
 }

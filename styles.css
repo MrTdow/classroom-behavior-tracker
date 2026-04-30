@@ -254,6 +254,11 @@ h1 {
   gap: 18px;
 }
 
+.classroom-mode .main-grid {
+  grid-template-columns: minmax(0, 2fr) minmax(300px, 0.85fr);
+  align-items: start;
+}
+
 .panel {
   border-radius: 26px;
   padding: 22px;
@@ -261,6 +266,17 @@ h1 {
 
 .panel-span-2 {
   grid-column: span 2;
+}
+
+.classroom-mode .classroom-entry-panel {
+  grid-column: span 1;
+}
+
+.classroom-live-panel {
+  position: sticky;
+  top: 18px;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
 }
 
 .panel-header {
@@ -624,6 +640,60 @@ textarea {
   justify-items: end;
 }
 
+.live-feed-list {
+  display: grid;
+  gap: 10px;
+}
+
+.live-feed-item {
+  border-radius: 18px;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.live-feed-item.tone-positive {
+  border-left: 5px solid var(--positive);
+}
+
+.live-feed-item.tone-negative {
+  border-left: 5px solid var(--negative);
+}
+
+.live-feed-main,
+.live-feed-details {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.live-feed-main span,
+.live-feed-details time,
+.live-feed-item p,
+.live-feed-empty {
+  color: var(--muted);
+}
+
+.live-feed-main span,
+.live-feed-details time {
+  font-size: 0.92rem;
+}
+
+.live-feed-item p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.live-feed-empty {
+  border-radius: 18px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px dashed var(--line);
+}
+
 .compact-button {
   padding: 8px 12px;
   font-size: 0.88rem;
@@ -751,6 +821,10 @@ textarea {
     grid-template-columns: 1fr 1fr;
   }
 
+  .classroom-mode .main-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .panel-span-2 {
     grid-column: span 1;
   }
@@ -774,6 +848,7 @@ textarea {
   .filter-grid,
   .stats-strip,
   .main-grid,
+  .classroom-mode .main-grid,
   .student-grid,
   .contact-grid,
   .summary-layout,
@@ -798,6 +873,17 @@ textarea {
 
   .event-side {
     justify-items: start;
+  }
+
+  .classroom-live-panel {
+    position: static;
+    max-height: none;
+  }
+
+  .live-feed-main,
+  .live-feed-details {
+    display: grid;
+    justify-content: start;
   }
 
   .student-tile-actions {
