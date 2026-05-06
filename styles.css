@@ -149,6 +149,7 @@ h1 {
 .primary-button,
 .secondary-button,
 .danger-button,
+.dashboard-tab,
 .positive-chip,
 .negative-chip {
   border-radius: 999px;
@@ -162,6 +163,7 @@ h1 {
 .danger-button:hover,
 .positive-chip:hover,
 .negative-chip:hover,
+.dashboard-tab:hover,
 .student-select:hover {
   transform: translateY(-1px);
 }
@@ -206,6 +208,28 @@ h1 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin: 20px 0;
+}
+
+.dashboard-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 18px 0;
+}
+
+.dashboard-tab {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 11px 15px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.active-dashboard-tab {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
 }
 
 .date-strip {
@@ -266,6 +290,11 @@ h1 {
 
 .pbis-mode .main-grid {
   grid-template-columns: 1fr;
+}
+
+.dashboard-tab-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
 }
 
 .panel {
@@ -745,6 +774,11 @@ textarea {
   max-width: 360px;
 }
 
+.report-picker {
+  max-width: 420px;
+  margin-bottom: 16px;
+}
+
 .pbis-card {
   border: 1px solid var(--line);
   border-radius: 20px;
@@ -926,6 +960,7 @@ textarea {
 
 @media (max-width: 1120px) {
   .main-grid,
+  .dashboard-tab-grid,
   .summary-layout,
   .report-layout {
     grid-template-columns: 1fr 1fr;
@@ -958,6 +993,7 @@ textarea {
   .filter-grid,
   .stats-strip,
   .main-grid,
+  .dashboard-tab-grid,
   .classroom-mode .main-grid,
   .student-grid,
   .contact-grid,

@@ -75,6 +75,16 @@ const DEFAULT_CONSEQUENCE_LADDER = [
   "Teacher contact home",
   "Office referral or team intervention"
 ];
+const DASHBOARD_TABS = [
+  { id: "log", label: "Log" },
+  { id: "students", label: "Students" },
+  { id: "records", label: "Records" },
+  { id: "summaries", label: "Summaries" },
+  { id: "contacts", label: "Contacts" },
+  { id: "reports", label: "Reports" },
+  { id: "settings", label: "Settings" },
+  { id: "share", label: "Share" }
+];
 
 const SAMPLE_STATE = createSampleState();
 
@@ -94,6 +104,7 @@ const appState = {
   studentPrintMode: false,
   classroomMode: false,
   pbisMode: false,
+  dashboardTab: "log",
   seatingChartMode: false,
   newClassName: "",
   bulkRosterText: "",
@@ -132,6 +143,7 @@ function initializeApp() {
   appState.selectedBehaviorId = appState.data.behaviorCategories[0]?.id || "";
   appState.noteModeOpen = false;
   appState.studentPrintMode = false;
+  appState.dashboardTab = "log";
   appState.bulkRosterPeriodId = appState.data.classPeriods[0]?.id || "";
   persistState();
   renderApp();
@@ -151,6 +163,7 @@ function renderApp() {
   const activePbisClass = appState.data.classPeriods.find((period) => period.id === activePbisClassId) || null;
   const pbisRewardName = getPbisRewardName();
   const pbisRows = buildPbisProgressForClass(activePbisClassId, pbisRewardName);
+  const activeDashboardTab = getActiveDashboardTab();
 
   root.innerHTML = `
     <div class="app-shell ${appState.studentPrintMode ? "student-print-mode" : ""} ${appState.classroomMode ? "classroom-mode" : ""} ${appState.pbisMode ? "pbis-mode" : ""}">
@@ -214,20 +227,23 @@ function renderApp() {
           ${renderStatCard("Negative on date", String(stats.negativeToday), "negative")}
           ${renderStatCard("Parent contacts", String(appState.data.parentContacts.length), "neutral")}
         </section>
+        ${renderDashboardTabs(activeDashboardTab)}
       `}
 
-      <main class="main-grid">
+      <main class="main-grid ${!appState.classroomMode && !appState.pbisMode ? `dashboard-tab-grid dashboard-tab-${activeDashboardTab}` : ""}">
         ${appState.pbisMode ? `
           <section class="panel panel-span-2 dashboard-pbis-panel">
             ${renderPanelHeader("PBIS", `${pbisRewardName} progress`, `Students earn rewards for clean positive streaks: 10 positives earns 1 ${pbisRewardName}, 25 positives earns 5 ${getPluralRewardName(pbisRewardName)} and resets the bar.`)}
             ${renderPbisProgressPanel(pbisRows, activePbisClass, activePbisClassId, pbisRewardName)}
           </section>
         ` : `
-          <section class="panel panel-span-2 classroom-entry-panel">
+          ${appState.classroomMode || activeDashboardTab === "log" ? `
+            <section class="panel panel-span-2 classroom-entry-panel">
             ${renderPanelHeader("Quick Entry", activeClass ? `Students in ${activeClass.name}` : "Select a class", "Click a class to load that roster, then log behavior in a couple of clicks.")}
             ${renderBehaviorEntryPanel(activeStudents)}
             ${renderStudentGrid(activeStudents)}
-          </section>
+            </section>
+          ` : ""}
 
           ${appState.classroomMode ? `
             <section class="panel classroom-live-panel" aria-live="polite">
@@ -237,51 +253,66 @@ function renderApp() {
           ` : ""}
 
           ${appState.classroomMode ? "" : `
-            <section class="panel">
-              ${renderPanelHeader("Share This App", "Teacher-ready backup and setup", "Each teacher keeps their own local data, but can back it up or move it to another device.")}
-              ${renderSharingPanel()}
-            </section>
+            ${activeDashboardTab === "students" ? `
+              <section class="panel">
+                ${renderPanelHeader("Classes", "Add and manage classes", "Create your own classes or periods for the school year.")}
+                ${renderClassManager()}
+              </section>
 
-            <section class="panel">
-              ${renderPanelHeader("Classes", "Add and manage classes", "Create your own classes or periods for the school year.")}
-              ${renderClassManager()}
-            </section>
+              <section class="panel panel-span-2">
+                ${renderPanelHeader("Roster", "Manage students", "Keep each student tied to a class period.")}
+                ${renderRosterManager(activeStudents, activeClass)}
+              </section>
+            ` : ""}
 
-            <section class="panel">
-              ${renderPanelHeader("Roster", "Manage students", "Keep each student tied to a class period.")}
-              ${renderRosterManager(activeStudents, activeClass)}
-            </section>
+            ${activeDashboardTab === "records" ? `
+              <section class="panel panel-span-2">
+                ${renderPanelHeader("Filters", "Search behavior records", "Narrow events by student, date range, period, or behavior.")}
+                ${renderFiltersPanel()}
+                ${renderEventFeed(filteredEvents.slice(0, 16))}
+              </section>
+            ` : ""}
 
-            <section class="panel">
-              ${renderPanelHeader("Filters", "Search behavior records", "Narrow events by student, date range, period, or behavior.")}
-              ${renderFiltersPanel()}
-              ${renderEventFeed(filteredEvents.slice(0, 16))}
-            </section>
+            ${activeDashboardTab === "summaries" ? `
+              <section class="panel panel-span-2">
+                ${renderPanelHeader("Summaries", "Daily and weekly trends", "See which students need recognition, support, or follow-up.")}
+                ${renderSummaryPanel(dailySummary, weeklySummary, stats.classPeriodTotals)}
+              </section>
+            ` : ""}
 
-            <section class="panel panel-span-2">
-              ${renderPanelHeader("Summaries", "Daily and weekly trends", "See which students need recognition, support, or follow-up.")}
-              ${renderSummaryPanel(dailySummary, weeklySummary, stats.classPeriodTotals)}
-            </section>
+            ${activeDashboardTab === "contacts" ? `
+              <section class="panel panel-span-2">
+                ${renderPanelHeader("Parent Contact", "Student communication log", "Track calls, emails, and follow-up notes by student.")}
+                ${renderParentContactPanel()}
+              </section>
+            ` : ""}
 
-            <section class="panel">
-              ${renderPanelHeader("Tracker Focus", "Three main categories", "Behavior, Preparedness, and Participation each log as positive or negative.")}
-              ${renderBehaviorCategoryManager()}
-            </section>
+            ${activeDashboardTab === "reports" ? `
+              <section class="panel panel-span-2 printable-report">
+                ${renderPanelHeader("Printable Report", reportStudent ? `Student report: ${escapeHtml(reportStudent.name)}` : "Choose a student report", "Use the roster buttons to print a single-student summary.")}
+                ${renderReportPicker(reportStudent?.id || appState.reportStudentId)}
+                ${renderStudentReport(reportStudent)}
+              </section>
+            ` : ""}
 
-            <section class="panel">
-              ${renderPanelHeader("Consequence Ladder", "Classroom response steps", "Customize the sequence you use for follow-up.")}
-              ${renderConsequenceLadderPanel()}
-            </section>
+            ${activeDashboardTab === "settings" ? `
+              <section class="panel">
+                ${renderPanelHeader("Tracker Focus", "Three main categories", "Behavior, Preparedness, and Participation each log as positive or negative.")}
+                ${renderBehaviorCategoryManager()}
+              </section>
 
-            <section class="panel panel-span-2">
-              ${renderPanelHeader("Parent Contact", "Student communication log", "Track calls, emails, and follow-up notes by student.")}
-              ${renderParentContactPanel()}
-            </section>
+              <section class="panel">
+                ${renderPanelHeader("Consequence Ladder", "Classroom response steps", "Customize the sequence you use for follow-up.")}
+                ${renderConsequenceLadderPanel()}
+              </section>
+            ` : ""}
 
-            <section class="panel panel-span-2 printable-report">
-              ${renderPanelHeader("Printable Report", reportStudent ? `Student report: ${escapeHtml(reportStudent.name)}` : "Choose a student report", "Use the roster buttons to print a single-student summary.")}
-              ${renderStudentReport(reportStudent)}
-            </section>
+            ${activeDashboardTab === "share" ? `
+              <section class="panel panel-span-2">
+                ${renderPanelHeader("Share This App", "Teacher-ready backup and setup", "Each teacher keeps their own local data, but can back it up or move it to another device.")}
+                ${renderSharingPanel()}
+              </section>
+            ` : ""}
           `}
         `}
       </main>
@@ -314,6 +345,26 @@ function renderStatCard(label, value, tone) {
       <span>${escapeHtml(label)}</span>
       <strong>${escapeHtml(value)}</strong>
     </article>
+  `;
+}
+
+function getActiveDashboardTab() {
+  return DASHBOARD_TABS.some((tab) => tab.id === appState.dashboardTab) ? appState.dashboardTab : "log";
+}
+
+function renderDashboardTabs(activeTab) {
+  return `
+    <nav class="dashboard-tabs" aria-label="Teacher dashboard sections">
+      ${DASHBOARD_TABS.map((tab) => `
+        <button
+          class="dashboard-tab ${tab.id === activeTab ? "active-dashboard-tab" : ""}"
+          data-action="select-dashboard-tab"
+          data-tab-id="${escapeAttribute(tab.id)}"
+        >
+          ${escapeHtml(tab.label)}
+        </button>
+      `).join("")}
+    </nav>
   `;
 }
 
@@ -1073,6 +1124,27 @@ function renderStudentReport(student) {
   `;
 }
 
+function renderReportPicker(selectedStudentId) {
+  const sortedStudents = [...appState.data.students].sort((left, right) => left.name.localeCompare(right.name));
+
+  return `
+    <label class="field report-picker">
+      <span>Student report</span>
+      <select id="reportStudentSelect">
+        <option value="">Choose a student</option>
+        ${sortedStudents.map((student) => {
+          const period = appState.data.classPeriods.find((entry) => entry.id === student.periodId);
+          return `
+            <option value="${escapeAttribute(student.id)}" ${student.id === selectedStudentId ? "selected" : ""}>
+              ${escapeHtml(student.name)}${period ? ` - ${escapeHtml(period.name)}` : ""}
+            </option>
+          `;
+        }).join("")}
+      </select>
+    </label>
+  `;
+}
+
 function attachEventHandlers() {
   const root = document.querySelector("#root");
 
@@ -1091,6 +1163,13 @@ function attachEventHandlers() {
       appState.classroomMode = false;
     }
     renderApp();
+  });
+  root.querySelectorAll('[data-action="select-dashboard-tab"]').forEach((button) => {
+    button.addEventListener("click", () => {
+      appState.dashboardTab = button.dataset.tabId || "log";
+      appState.studentPrintMode = false;
+      renderApp();
+    });
   });
   root.querySelector('[data-action="toggle-seating-mode"]')?.addEventListener("click", () => {
     appState.seatingChartMode = !appState.seatingChartMode;
@@ -1123,6 +1202,7 @@ function attachEventHandlers() {
     appState.flashTone = "";
     appState.classroomMode = false;
     appState.pbisMode = false;
+    appState.dashboardTab = "log";
     appState.studentPrintMode = false;
     appState.reportStudentId = "";
     appState.contactDrafts = {};
@@ -1292,6 +1372,7 @@ function attachEventHandlers() {
     button.addEventListener("click", () => {
       appState.reportStudentId = button.dataset.studentId;
       appState.studentPrintMode = false;
+      appState.dashboardTab = "reports";
       renderApp();
     });
   });
@@ -1300,15 +1381,22 @@ function attachEventHandlers() {
     button.addEventListener("click", () => {
       appState.reportStudentId = button.dataset.studentId;
       appState.studentPrintMode = true;
+      appState.dashboardTab = "reports";
       renderApp();
       window.setTimeout(() => window.print(), 60);
     });
+  });
+  root.querySelector("#reportStudentSelect")?.addEventListener("change", (event) => {
+    appState.reportStudentId = event.target.value;
+    appState.studentPrintMode = false;
+    renderApp();
   });
 
   root.querySelectorAll('[data-action="print-current-student-report"]').forEach((button) => {
     button.addEventListener("click", () => {
       appState.reportStudentId = button.dataset.studentId;
       appState.studentPrintMode = true;
+      appState.dashboardTab = "reports";
       renderApp();
       window.setTimeout(() => window.print(), 60);
     });
@@ -2138,6 +2226,7 @@ function restoreBackupFile(file) {
       appState.studentPrintMode = false;
       appState.classroomMode = false;
       appState.pbisMode = false;
+      appState.dashboardTab = "log";
       appState.contactDrafts = {};
       appState.activeClassId = normalized.classPeriods[0]?.id || "";
       appState.summaryClassId = appState.activeClassId;
