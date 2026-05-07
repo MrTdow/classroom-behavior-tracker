@@ -2,6 +2,14 @@ const STORAGE_KEY = "teacher-behavior-tracker-local-v1";
 const BACKUP_FILE_VERSION = 1;
 const DEFAULT_HALL_PASSES = 8;
 const DEFAULT_PBIS_REWARD_NAME = "Doudna Dollar";
+const DEFAULT_APP_SETTINGS = {
+  pageColor: "#e8efff",
+  panelColor: "#ffffff",
+  textColor: "#1e2d55",
+  accentColor: "#2850d8",
+  pbisProgressName: "PBIS Progress",
+  pbisRewardName: DEFAULT_PBIS_REWARD_NAME
+};
 const QUICK_NOTE_PRESETS = [
   "Tardy",
   "Phone",
@@ -150,6 +158,7 @@ function initializeApp() {
 }
 
 function renderApp() {
+  applyThemeSettings();
   const root = document.querySelector("#root");
   const activeClass = appState.data.classPeriods.find((period) => period.id === appState.activeClassId) || null;
   const activeStudents = getStudentsForActiveClass();
@@ -161,6 +170,7 @@ function renderApp() {
   const classroomEvents = getClassroomActivityEvents(appState.activeClassId).slice(0, 24);
   const activePbisClassId = appState.pbisClassId || appState.activeClassId || appState.data.classPeriods[0]?.id || "";
   const activePbisClass = appState.data.classPeriods.find((period) => period.id === activePbisClassId) || null;
+  const pbisProgressName = getPbisProgressName();
   const pbisRewardName = getPbisRewardName();
   const pbisRows = buildPbisProgressForClass(activePbisClassId, pbisRewardName);
   const activeDashboardTab = getActiveDashboardTab();
@@ -186,7 +196,7 @@ function renderApp() {
             ${appState.classroomMode ? "Exit classroom mode" : "Classroom mode"}
           </button>
           <button class="secondary-button ${appState.pbisMode ? "active-mode-button" : ""}" data-action="toggle-pbis-mode">
-            ${appState.pbisMode ? "Teacher dashboard" : "PBIS"}
+            ${appState.pbisMode ? "Teacher dashboard" : escapeHtml(pbisProgressName)}
           </button>
           ${appState.pbisMode ? "" : `
             <button class="secondary-button" data-action="toggle-seating-mode">
@@ -231,9 +241,9 @@ function renderApp() {
       `}
 
       <main class="main-grid ${!appState.classroomMode && !appState.pbisMode ? `dashboard-tab-grid dashboard-tab-${activeDashboardTab}` : ""}">
-        ${appState.pbisMode ? `
-          <section class="panel panel-span-2 dashboard-pbis-panel">
-            ${renderPanelHeader("PBIS", `${pbisRewardName} progress`, `Students earn rewards for clean positive streaks: 10 positives earns 1 ${pbisRewardName}, 25 positives earns 5 ${getPluralRewardName(pbisRewardName)} and resets the bar.`)}
+          ${appState.pbisMode ? `
+            <section class="panel panel-span-2 dashboard-pbis-panel">
+            ${renderPanelHeader("Rewards", pbisProgressName, `Students earn rewards for clean positive streaks: 10 positives earns 1 ${pbisRewardName}, 25 positives earns 5 ${getPluralRewardName(pbisRewardName)} and resets the bar.`)}
             ${renderPbisProgressPanel(pbisRows, activePbisClass, activePbisClassId, pbisRewardName)}
           </section>
         ` : `
@@ -296,6 +306,11 @@ function renderApp() {
             ` : ""}
 
             ${activeDashboardTab === "settings" ? `
+              <section class="panel panel-span-2">
+                ${renderPanelHeader("Customize", "Make this tracker your own", "Change colors and PBIS labels so another teacher can use the same tracker with their own classroom language.")}
+                ${renderCustomizationPanel()}
+              </section>
+
               <section class="panel">
                 ${renderPanelHeader("Tracker Focus", "Three main categories", "Behavior, Preparedness, and Participation each log as positive or negative.")}
                 ${renderBehaviorCategoryManager()}
@@ -819,7 +834,7 @@ function renderSummaryPanel(dailySummary, weeklySummary, classPeriodTotals) {
 
 function renderPbisProgressPanel(rows, activeClass, activePbisClassId, rewardName) {
   if (!activeClass) {
-    return '<div class="empty-box">Select a class to view PBIS progress.</div>';
+    return '<div class="empty-box">Select a class to view reward progress.</div>';
   }
 
   return `
@@ -1145,6 +1160,60 @@ function renderReportPicker(selectedStudentId) {
   `;
 }
 
+function renderCustomizationPanel() {
+  const settings = getAppSettings();
+
+  return `
+    <div class="customization-grid">
+      <label class="field">
+        <span>Web page color</span>
+        <div class="color-control">
+          <input type="color" value="${escapeAttribute(settings.pageColor)}" data-setting-key="pageColor" aria-label="Web page color">
+          <input type="text" value="${escapeAttribute(settings.pageColor)}" data-setting-key="pageColor" aria-label="Web page color code">
+        </div>
+      </label>
+
+      <label class="field">
+        <span>Panel color</span>
+        <div class="color-control">
+          <input type="color" value="${escapeAttribute(settings.panelColor)}" data-setting-key="panelColor" aria-label="Panel color">
+          <input type="text" value="${escapeAttribute(settings.panelColor)}" data-setting-key="panelColor" aria-label="Panel color code">
+        </div>
+      </label>
+
+      <label class="field">
+        <span>Text color</span>
+        <div class="color-control">
+          <input type="color" value="${escapeAttribute(settings.textColor)}" data-setting-key="textColor" aria-label="Text color">
+          <input type="text" value="${escapeAttribute(settings.textColor)}" data-setting-key="textColor" aria-label="Text color code">
+        </div>
+      </label>
+
+      <label class="field">
+        <span>Button color</span>
+        <div class="color-control">
+          <input type="color" value="${escapeAttribute(settings.accentColor)}" data-setting-key="accentColor" aria-label="Button color">
+          <input type="text" value="${escapeAttribute(settings.accentColor)}" data-setting-key="accentColor" aria-label="Button color code">
+        </div>
+      </label>
+
+      <label class="field">
+        <span>PBIS progress name</span>
+        <input type="text" maxlength="50" value="${escapeAttribute(settings.pbisProgressName)}" data-setting-key="pbisProgressName" placeholder="${escapeAttribute(DEFAULT_APP_SETTINGS.pbisProgressName)}">
+      </label>
+
+      <label class="field">
+        <span>Reward name</span>
+        <input type="text" maxlength="40" value="${escapeAttribute(settings.pbisRewardName)}" data-setting-key="pbisRewardName" placeholder="${escapeAttribute(DEFAULT_PBIS_REWARD_NAME)}">
+      </label>
+    </div>
+
+    <div class="customization-actions">
+      <button class="secondary-button" data-action="reset-customization">Reset colors and labels</button>
+    </div>
+  `;
+}
+
 function attachEventHandlers() {
   const root = document.querySelector("#root");
 
@@ -1170,6 +1239,25 @@ function attachEventHandlers() {
       appState.studentPrintMode = false;
       renderApp();
     });
+  });
+  root.querySelectorAll("[data-setting-key]").forEach((input) => {
+    input.addEventListener("input", (event) => {
+      updateAppSetting(event.target.dataset.settingKey, event.target.value, { rerender: false });
+      if (isColorSetting(event.target.dataset.settingKey) && isValidHexColor(event.target.value)) {
+        syncMatchingSettingInputs(event.target.dataset.settingKey, event.target.value, event.target);
+      }
+    });
+    input.addEventListener("change", (event) => {
+      updateAppSetting(event.target.dataset.settingKey, event.target.value, { rerender: true });
+    });
+  });
+  root.querySelector('[data-action="reset-customization"]')?.addEventListener("click", () => {
+    appState.data.settings = {
+      ...(appState.data.settings || {}),
+      ...DEFAULT_APP_SETTINGS
+    };
+    persistState();
+    renderApp();
   });
   root.querySelector('[data-action="toggle-seating-mode"]')?.addEventListener("click", () => {
     appState.seatingChartMode = !appState.seatingChartMode;
@@ -1957,17 +2045,90 @@ function getClassroomActivityEvents(periodId) {
     .sort((left, right) => new Date(right.timestamp) - new Date(left.timestamp));
 }
 
+function getAppSettings() {
+  const savedSettings = appState.data.settings || {};
+  return {
+    ...DEFAULT_APP_SETTINGS,
+    ...savedSettings,
+    pageColor: normalizeHexColor(savedSettings.pageColor, DEFAULT_APP_SETTINGS.pageColor),
+    panelColor: normalizeHexColor(savedSettings.panelColor, DEFAULT_APP_SETTINGS.panelColor),
+    textColor: normalizeHexColor(savedSettings.textColor, DEFAULT_APP_SETTINGS.textColor),
+    accentColor: normalizeHexColor(savedSettings.accentColor, DEFAULT_APP_SETTINGS.accentColor),
+    pbisProgressName: String(savedSettings.pbisProgressName || DEFAULT_APP_SETTINGS.pbisProgressName).trim() || DEFAULT_APP_SETTINGS.pbisProgressName,
+    pbisRewardName: String(savedSettings.pbisRewardName || DEFAULT_PBIS_REWARD_NAME).trim() || DEFAULT_PBIS_REWARD_NAME
+  };
+}
+
+function applyThemeSettings() {
+  const settings = getAppSettings();
+  const root = document.documentElement;
+  root.style.setProperty("--bg", settings.pageColor);
+  root.style.setProperty("--surface", `color-mix(in srgb, ${settings.panelColor} 88%, ${settings.pageColor})`);
+  root.style.setProperty("--surface-strong", settings.panelColor);
+  root.style.setProperty("--ink", settings.textColor);
+  root.style.setProperty("--muted", `color-mix(in srgb, ${settings.textColor} 68%, ${settings.pageColor})`);
+  root.style.setProperty("--accent", settings.accentColor);
+  root.style.setProperty("--accent-soft", `color-mix(in srgb, ${settings.accentColor} 14%, ${settings.panelColor})`);
+  root.style.setProperty("--line", `color-mix(in srgb, ${settings.accentColor} 18%, ${settings.panelColor})`);
+}
+
+function getPbisProgressName() {
+  return getAppSettings().pbisProgressName;
+}
+
 function getPbisRewardName() {
-  return (appState.data.settings?.pbisRewardName || DEFAULT_PBIS_REWARD_NAME).trim() || DEFAULT_PBIS_REWARD_NAME;
+  return getAppSettings().pbisRewardName;
 }
 
 function updatePbisRewardName(value) {
-  const rewardName = String(value || "").trim() || DEFAULT_PBIS_REWARD_NAME;
+  updateAppSetting("pbisRewardName", value, { rerender: false });
+}
+
+function updateAppSetting(key, value, options = {}) {
+  if (!Object.prototype.hasOwnProperty.call(DEFAULT_APP_SETTINGS, key)) {
+    return;
+  }
+
+  const nextValue = isColorSetting(key)
+    ? normalizeHexColor(value, getAppSettings()[key])
+    : String(value || "").trim();
+
   appState.data.settings = {
-    ...(appState.data.settings || {}),
-    pbisRewardName: rewardName
+    ...getAppSettings(),
+    [key]: nextValue || DEFAULT_APP_SETTINGS[key]
   };
+
   persistState();
+  applyThemeSettings();
+
+  if (options.rerender) {
+    renderApp();
+  }
+}
+
+function syncMatchingSettingInputs(key, value, sourceInput) {
+  if (!isValidHexColor(value)) {
+    return;
+  }
+
+  document.querySelectorAll(`[data-setting-key="${key}"]`).forEach((input) => {
+    if (input !== sourceInput) {
+      input.value = value;
+    }
+  });
+}
+
+function isColorSetting(key) {
+  return ["pageColor", "panelColor", "textColor", "accentColor"].includes(key);
+}
+
+function normalizeHexColor(value, fallback) {
+  const candidate = String(value || "").trim();
+  return isValidHexColor(candidate) ? candidate : fallback;
+}
+
+function isValidHexColor(value) {
+  return /^#[0-9a-f]{6}$/i.test(String(value || "").trim());
 }
 
 function getPluralRewardName(rewardName) {
@@ -2302,9 +2463,7 @@ function createSampleState() {
   const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60000).toISOString();
 
   return {
-    settings: {
-      pbisRewardName: DEFAULT_PBIS_REWARD_NAME
-    },
+    settings: { ...DEFAULT_APP_SETTINGS },
     classPeriods: periods,
     students,
     behaviorCategories: DEFAULT_BEHAVIORS,
@@ -2335,7 +2494,13 @@ function normalizeLoadedState(state) {
   return {
     ...state,
     settings: {
+      ...DEFAULT_APP_SETTINGS,
       ...(state.settings || {}),
+      pageColor: normalizeHexColor(state.settings?.pageColor, DEFAULT_APP_SETTINGS.pageColor),
+      panelColor: normalizeHexColor(state.settings?.panelColor, DEFAULT_APP_SETTINGS.panelColor),
+      textColor: normalizeHexColor(state.settings?.textColor, DEFAULT_APP_SETTINGS.textColor),
+      accentColor: normalizeHexColor(state.settings?.accentColor, DEFAULT_APP_SETTINGS.accentColor),
+      pbisProgressName: String(state.settings?.pbisProgressName || DEFAULT_APP_SETTINGS.pbisProgressName).trim() || DEFAULT_APP_SETTINGS.pbisProgressName,
       pbisRewardName: String(state.settings?.pbisRewardName || DEFAULT_PBIS_REWARD_NAME).trim() || DEFAULT_PBIS_REWARD_NAME
     },
     classPeriods: (state.classPeriods || []).map((period, index) => ({
